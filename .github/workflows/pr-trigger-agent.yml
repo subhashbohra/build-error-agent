@@ -1,0 +1,27 @@
+﻿name: Notify Build-Error Agent
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+jobs:
+  notify-agent:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post event to agent
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const payload = JSON.stringify(context.payload)
+            const agentUrl = process.env.AGENT_URL
+            if (!agentUrl) throw new Error('AGENT_URL not set')
+            const secret = process.env.AGENT_SECRET || ''
+            await require('node-fetch')(agentUrl + '/webhook', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-Agent-Secret': secret },
+              body: payload
+            })
+        env:
+          AGENT_URL: ${{ secrets.AGENT_URL }}
+          AGENT_SECRET: ${{ secrets.AGENT_SECRET }}
