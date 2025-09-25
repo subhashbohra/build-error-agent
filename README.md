@@ -6,7 +6,7 @@ Assumption: by "SLM" we mean a Self-Learning Module — a component that improve
 
 ## Architecture
 
-```mermaid
+mermaid
 flowchart TD
   PR[Pull Request / Push]
   GHAction[GitHub Action]
@@ -28,7 +28,6 @@ flowchart TD
   SLM --> LLM
 
   style SLM fill:#f9f,stroke:#333,stroke-width:1px
-```
 
 High level: when a PR opens, the GitHub Action posts the event to the Agent API. The agent enqueues a job, the worker clones the PR branch, runs the project's configured build/test commands in a sandbox (Docker recommended), captures logs, then runs a combination of heuristic analyzers and an LLM-based analyzer to produce a diagnosis and suggested fix. Optionally the agent can open a comment or a branch/PR with a patch.
 
