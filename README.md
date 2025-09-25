@@ -50,11 +50,23 @@ High level: when a PR opens, the GitHub Action posts the event to the Agent API.
 
 The GitHub Action example posts the raw event payload to the agent. The agent reads the payload, schedules a job, and returns 202.
 
-## SLM (Self-Learning Module) notes
+## SLM (Self-Learning Module) notes — Google Gemma
 
-- Data to collect: build logs, stack traces, repo metadata, commands run, analysis output, whether developer accepted suggestions or their final fix.
-- Training signal: when an automated suggestion is accepted / merged or annotated as helpful, store (log, suggestion, outcome) for retraining.
-- Retrainer: periodic job that fine-tunes a prompt or a small classification model that maps log patterns -> suggested fixes.
+- This scaffold can be extended to use Google Gemma (Vertex AI) as the SLM/LLM for analysis and retraining. Key ideas:
+  - Data to collect: build logs, stack traces, repo metadata, commands run, analyzer output, developer feedback (accepted suggestions / final fix).
+  - Training signal: label incidents when suggestions are accepted/merged or annotated as helpful; those (log, suggestion, outcome) tuples form the training set.
+  - Retrainer: a periodic job that aggregates labeled incidents and uses Gemma (Vertex AI) to fine-tune or produce a retrieval-augmented prompt template.
+
+Auth and setup for Google Gemma (Vertex AI)
+
+- Provide Google credentials via the `GOOGLE_APPLICATION_CREDENTIALS` env var (path to a service account JSON) or via ADC (Application Default Credentials).
+- Set `GEMMA_MODEL` to the desired Gemma model name (for example `gemma-13b` or `gemma-65b` depending on availability and your quota).
+
+Notes on costs and safety
+
+- Gemma/Vertex AI usage may incur costs. Start with a small test dataset and monitor usage.
+- Keep sensitive logs out of training datasets, or redact secrets before storing them in the SLM dataset.
+
 
 ## Security
 - Run the agent behind TLS. Protect endpoints with `AGENT_SECRET` or GitHub App verification.

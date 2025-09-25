@@ -1,38 +1,66 @@
-﻿from fastapi import FastAPI, Request, Header, HTTPException
-from pydantic import BaseModel
+﻿import http.server
+import socketserver
+import json
 import os
 import uuid
-import asyncio
+from urllib.parse import urlparse
 from .worker import enqueue_job
 
-app = FastAPI()
-
+PORT = int(os.environ.get("PORT", "8080"))
 AGENT_SECRET = os.environ.get("AGENT_SECRET")
 
 
-class GitHubEvent(BaseModel):
-    action: str = None
-    pull_request: dict = None
+class Handler(http.server.BaseHTTPRequestHandler):
+    def _set_json(self, status=200):
+        self.send_response(status)
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+
+    def do_GET(self):
+        p = urlparse(self.path)
+        if p.path == '/health':
+            self._set_json(200)
+            self.wfile.write(json.dumps({'status': 'ok'}).encode())
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+    def do_POST(self):
+        p = urlparse(self.path)
+        if p.path != '/webhook':
+            self.send_response(404)
+            self.end_headers()
+            return
+
+        # auth
+        agent_secret = self.headers.get('X-Agent-Secret')
+        if AGENT_SECRET and agent_secret != AGENT_SECRET:
+            self._set_json(401)
+            self.wfile.write(json.dumps({'error': 'invalid agent secret'}).encode())
+            return
+
+        length = int(self.headers.get('Content-Length', '0'))
+        body = self.rfile.read(length) if length > 0 else b'{}'
+        try:
+            payload = json.loads(body.decode())
+        except Exception:
+            payload = {}
+
+        job_id = str(uuid.uuid4())
+        enqueue_job({'id': job_id, 'payload': payload})
+
+        self._set_json(202)
+        self.wfile.write(json.dumps({'status': 'accepted', 'job_id': job_id}).encode())
 
 
-@app.post("/webhook")
-async def webhook(request: Request, x_hub_signature: str | None = Header(None)):
-    # Very small auth: expect AGENT_SECRET in header X-Agent-Secret
-    agent_secret = request.headers.get("X-Agent-Secret")
-    if AGENT_SECRET and agent_secret != AGENT_SECRET:
-        raise HTTPException(status_code=401, detail="invalid agent secret")
-
-    payload = await request.json()
-    # Minimal validation - accept PR opened/edited/synchronize
-    event = GitHubEvent(**payload)
-
-    # Enqueue job for analysis
-    job_id = str(uuid.uuid4())
-    await enqueue_job({"id": job_id, "payload": payload})
-
-    return {"status": "accepted", "job_id": job_id}
+def run():
+    with socketserver.ThreadingTCPServer(('0.0.0.0', PORT), Handler) as httpd:
+        print(f"Agent listening on port {PORT}")
+        try:
+            httpd.serve_forever()
+        except KeyboardInterrupt:
+            httpd.shutdown()
 
 
-@app.get("/health")
-async def health():
-    return {"status": "ok"}
+if __name__ == '__main__':
+    run()
