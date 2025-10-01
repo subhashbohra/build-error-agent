@@ -6,7 +6,8 @@ Assumption: by "SLM" we mean a Self-Learning Module — a component that improve
 
 ## Architecture
 
-``` mermaid
+#---------------------------------------------------------------------------
+```
 flowchart TD
   PR[Pull Request / Push]
   GHAction[GitHub Action]
